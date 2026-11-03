@@ -17,7 +17,7 @@ class Message_type(IntEnum):
     LEAVE=8
     ERROR=9
 
-#HEADER_SIZE =12
+HEADER_SIZE =12 #temp
 HEADER_FORMAT = '!BBHH'   #'!BBBHHH' #9 bytes #TODO we need to add the rest of the headers and the payload
 SERVER_PORT = 8000
 peers_list = []
