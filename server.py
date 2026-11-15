@@ -2,13 +2,18 @@ import hashlib
 import socket
 import pickle
 import struct
+from collections import Counter
 from enum import IntEnum
+import threading
+
 
 class Server:
     HEADER_SIZE = 6  # temp
     HEADER_FORMAT = '!BBHH'  # 6 bytes #TODO we need to add the rest of the headers and the payload
     SERVER_PORT = 8000
     peers_list = []
+    peers_bitmaps = {}
+    payload = 0
 
     def __init__(self, port: int):
         self.SERVER_PORT = port
@@ -26,10 +31,42 @@ class Server:
         ERROR = 9
 
     def start_server(self):
+        self.payload = generate_synthetic_payload()
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(('', self.SERVER_PORT))
         print(f"SERVER: Listening on port {self.SERVER_PORT}.")
-        while True: #TODO: we need to move this main loop into its own function
+        main_thread = threading.Thread(target=self.mainloop(server_socket))
+        main_thread.start()
+        seeding_thread = threading.Thread(target=self.seedloop(server_socket))
+        seeding_thread.start()
+
+    def seedloop(self, server_socket):
+        while True:
+            if len(self.peers_list) > 0:
+                poorest_client = min(self.peers_bitmaps, key=lambda k: self.peers_bitmaps[k].bit_count()) #lets assume for now the bitmap is a string
+                #poorest client should be a tuple (ip, port)
+                bit_counts = Counter()
+                max_bit_length = max(b.bit_length() for b in self.peers_bitmaps)
+
+                # Count frequencies at each position
+                for num in self.peers_bitmaps:
+                    for pos in range(max_bit_length):
+                        if (num >> pos) & 1:
+                            bit_counts[pos] += 1
+
+                # Find the position with the lowest count (ignoring completely unused positions)
+                rarest_chunk = min(bit_counts, key=bit_counts.get)
+                msg = self.payload[rarest_chunk]
+                header = self.pack_header(1, 1, self.MessageType.CHUNK_DATA, 1,0)
+                server_socket.sendto((header + msg), poorest_client)
+
+
+
+
+
+
+    def mainloop(self, server_socket):
+        while True:
             message, address = server_socket.recvfrom(1200)
 
             if len(message) < self.HEADER_SIZE:
@@ -38,15 +75,16 @@ class Server:
             protocol_id, version, msg_type, sequence_number, payload_length = self.unpack_header(message)
             print("SERVER: received a message from client!")
 
-            if msg_type == self.MessageType.JOIN:
-                print("SERVER: peer has joined the server!")
-                if address not in self.peers_list:
-                    self.peers_list.append(address)
-                    msg = pickle.dumps(self.peers_list)
-                    header = self.pack_header(1, 1, self.MessageType.PEER_LIST, 1,
-                                         0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
-                    server_socket.sendto((header + msg), address)
-                    print("SERVER: peers list was sent!")
+            match msg_type:
+                case self.MessageType.JOIN:
+                    print("SERVER: peer has joined the server!")
+                    if address not in self.peers_list:
+                        self.peers_list.append(address)
+                        msg = pickle.dumps(self.peers_list)
+                        header = self.pack_header(1, 1, self.MessageType.PEER_LIST, 1,
+                                             0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
+                        server_socket.sendto((header + msg), address)
+                        print("SERVER: peers list was sent!")
 
     def pack_header(self, protocol_id, version, msg_type, sequence_number, payload_length):  # TODO make it pack / unpack not exclusive to headers
         version_message_type = (version << 4) + msg_type
