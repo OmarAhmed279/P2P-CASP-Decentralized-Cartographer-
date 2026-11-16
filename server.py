@@ -5,11 +5,11 @@ import struct
 from collections import Counter
 from enum import IntEnum
 import threading
-
+import protocol 
 
 class Server:
-    HEADER_SIZE = 6  # temp
-    HEADER_FORMAT = '!BBHH'  # 6 bytes #TODO we need to add the rest of the headers and the payload
+    #HEADER_SIZE = 6  # temp
+    #HEADER_FORMAT = '!BBHH'  # 6 bytes #TODO we need to add the rest of the headers and the payload
     SERVER_PORT = 8000
     peers_list = []
     peers_bitmaps = {}
@@ -82,22 +82,22 @@ class Server:
                         self.peers_list.append(address)
                         msg = pickle.dumps(self.peers_list)
                         header = self.pack_header(1, 1, self.MessageType.PEER_LIST, 1,
-                                             0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
+                                            0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
                         server_socket.sendto((header + msg), address)
                         print("SERVER: peers list was sent!")
 
-    def pack_header(self, protocol_id, version, msg_type, sequence_number, payload_length):  # TODO make it pack / unpack not exclusive to headers
-        version_message_type = (version << 4) + msg_type
-        header_bytes = struct.pack(self.HEADER_FORMAT, protocol_id, version_message_type, sequence_number, payload_length)
-        return header_bytes
+    # def pack_header(self, protocol_id, version, msg_type, sequence_number, payload_length):  # TODO make it pack / unpack not exclusive to headers
+    #     version_message_type = (version << 4) + msg_type
+    #     header_bytes = struct.pack(self.HEADER_FORMAT, protocol_id, version_message_type, sequence_number, payload_length)
+    #     return header_bytes
 
-    def unpack_header(self, raw_bytes):
-        protocol_id, version_message_type, sequence_number, payload_length = struct.unpack_from(self.HEADER_FORMAT, raw_bytes)  # unpackFROM doesnt give error and unpack according to the format without it needing to match the size
-        version = version_message_type >> 4
-        message_type = version_message_type & 0xF  # both are 4 bits so this code to get them out the 8 bit char the share
-        return protocol_id, version, message_type, sequence_number, payload_length
+    # def unpack_header(self, raw_bytes):
+    #     protocol_id, version_message_type, sequence_number, payload_length = struct.unpack_from(self.HEADER_FORMAT, raw_bytes)  # unpackFROM doesnt give error and unpack according to the format without it needing to match the size
+    #     version = version_message_type >> 4
+    #     message_type = version_message_type & 0xF  # both are 4 bits so this code to get them out the 8 bit char the share
+    #     return protocol_id, version, message_type, sequence_number, payload_length
 
-def generate_synthetic_payload(size_bytes: int, chunk_size: int = 1024, seed: int = 42) -> bytes:
+def generate_synthetic_payload(size_bytes: int, chunk_size: int = 64, seed: int = 42) -> bytes:  #5 seconds limit of uploading to 4 peers and the 50kbps limit 
         """
         Generates a deterministic pseudo-random payload of a specific size.
         :param size_bytes: Total size of the payload to generate in bytes.

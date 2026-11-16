@@ -3,7 +3,7 @@ import socket
 import pickle
 import struct
 from enum import IntEnum
-
+import protocol 
 from server import Server
 
 
@@ -13,7 +13,7 @@ class Client:
     SERVER_IP = '127.0.0.1'
     SERVER_PORT = 8000
     peers_list = []
-
+    chunks={}
     def __init__(self, ip: str, port: int):
         self.SERVER_IP = ip
         self.SERVER_PORT = port
@@ -41,18 +41,18 @@ class Client:
                 continue
             protocol_id, version, msg_type, sequence_number, payload_length = self.unpack_header(message) #TODO: currently doesn't care about the header
             print("CLIENT: received a message from server!")
+    
 
+    # def pack_header(self, protocol_id, version, msg_type, sequence_number, payload_length):  # TODO make it pack / unpack not exclusive to headers
+    #     version_message_type = (version << 4) + msg_type
+    #     header_bytes = struct.pack(self.HEADER_FORMAT, protocol_id, version_message_type, sequence_number, payload_length)
+    #     return header_bytes
 
-    def pack_header(self, protocol_id, version, msg_type, sequence_number, payload_length):  # TODO make it pack / unpack not exclusive to headers
-        version_message_type = (version << 4) + msg_type
-        header_bytes = struct.pack(self.HEADER_FORMAT, protocol_id, version_message_type, sequence_number, payload_length)
-        return header_bytes
-
-    def unpack_header(self, raw_bytes):
-        protocol_id, version_message_type, sequence_number, payload_length = struct.unpack_from(self.HEADER_FORMAT, raw_bytes)  # unpackFROM doesnt give error and unpack according to the format without it needing to match the size
-        version = version_message_type >> 4
-        message_type = version_message_type & 0xF  # both are 4 bits so this code to get them out the 8 bit char the share
-        return protocol_id, version, message_type, sequence_number, payload_length
+    # def unpack_header(self, raw_bytes):
+    #     protocol_id, version_message_type, sequence_number, payload_length = struct.unpack_from(self.HEADER_FORMAT, raw_bytes)  # unpackFROM doesnt give error and unpack according to the format without it needing to match the size
+    #     version = version_message_type >> 4
+    #     message_type = version_message_type & 0xF  # both are 4 bits so this code to get them out the 8 bit char the share
+    #     return protocol_id, version, message_type, sequence_number, payload_length
 
 if __name__ == "__main__":
     client = Client('127.0.0.1', 8000)
