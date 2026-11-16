@@ -1,7 +1,6 @@
 import hashlib
 import socket
 import pickle
-import struct
 import time
 from collections import Counter
 from enum import IntEnum
@@ -11,9 +10,9 @@ from peer_details import peer_details as pd
 
 class Server:
     SERVER_PORT = 8000
-    peers_list: list[pd] = []
+    peers_list: dict[int, pd] = {}
     payload = 0
-    id = 0
+    id_counter = 0
     sequence_number=0
     def __init__(self, port: int):
         self.SERVER_PORT = port
@@ -31,7 +30,7 @@ class Server:
         ERROR = 9
 
     def start_server(self):
-        self.payload = generate_synthetic_payload()
+        self.payload = generate_synthetic_payload(64*256)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(('', self.SERVER_PORT))
         print(f"SERVER: Listening on port {self.SERVER_PORT}.")
@@ -43,13 +42,13 @@ class Server:
     def seedloop(self, server_socket):
         while True:
             time.sleep(0.01024)
-            if len(self.peers_list) > 0:
-                poorest_client = min(self.peers_list, key=lambda peer: peer.latest_bitmap.bit_count())
+            if len(self.peers_list) > 0: #TODO: fix rarest chunk
+                poorest_client = min(self.peers_list.values(), key=lambda peer: peer.latest_bitmap.bit_count())
                 bit_counts = Counter()
-                max_bit_length = max(peer.latest_bitmap.bit_length() for peer in self.peers_list)
+                max_bit_length = max(peer.latest_bitmap.bit_length() for peer in self.peers_list.values())
 
                 # Count frequencies at each position
-                for peer in self.peers_list:
+                for peer in self.peers_list.values():
                     num = peer.latest_bitmap
                     for pos in range(max_bit_length):
                         if (num >> pos) & 1:
@@ -59,7 +58,7 @@ class Server:
                 rarest_chunk = min(bit_counts, key=bit_counts.get)
 
                 msg = self.payload[rarest_chunk * 64: rarest_chunk * 64 + 64]
-                header = protocol.pack_header(1, self.MessageType.CHUNK_DATA, 0, poorest_client.id,0, time.time_ns())
+                header = protocol.pack_header(1, self.MessageType.CHUNK_DATA, 0, 0, 64, time.time())
                 server_socket.sendto((header + msg), poorest_client)
 
     def mainloop(self, server_socket):
@@ -69,21 +68,30 @@ class Server:
             if len(message) < protocol.HEADER_SIZE:
                 continue
 
-            protocol_id, version, msg_type, sequence_number, payload_length = protocol.unpack_header(message)
+            protocol_id, version, message_type, sequence_number, peer_id, payload_length, timestamp = protocol.unpack_header(message)
             print("SERVER: received a message from client!")
 
-            match msg_type:
+            match message_type:
                 case self.MessageType.JOIN:
                     print("SERVER: peer has joined the server!")
-                    if address not in self.peers_list:
-                        self.id = self.id + 1
-                        self.peers_list.append(pd(self.id, address[0], address[1]))
+                    if not any(peer.address == address for peer in self.peers_list.values()):
+                        self.id_counter = self.id_counter + 1
+                        new_peer = pd(address[0], address[1], id=self.id_counter)
+                        msg = pickle.dumps(new_peer)
+                        header = protocol.pack_header(1, self.MessageType.PEER_LIST, sequence_number, 0, 1, int(time.time()))
+
+                        for peer in self.peers_list.values():
+                            server_socket.sendto((header + msg), peer.address)
+
+                        self.peers_list[self.id_counter]= new_peer
                         msg = pickle.dumps(self.peers_list)
-                        
-                        header = protocol.pack_header(1, self.MessageType.PEER_LIST, sequence_number,0,1,0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
-                        sequence_number += 1
+
                         server_socket.sendto((header + msg), address)
+
                         print("SERVER: peers list was sent!")
+                case self.MessageType.MAP_COMPLETE: #TODO: implement map complete
+                    continue
+
 
 def generate_synthetic_payload(size_bytes: int, chunk_size: int = 64, seed: int = 42) -> bytes:  #5 seconds limit of uploading to 4 peers and the 50kbps limit 
         """
