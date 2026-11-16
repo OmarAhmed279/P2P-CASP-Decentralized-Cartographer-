@@ -11,10 +11,11 @@ class Server:
     #HEADER_SIZE = 6  # temp
     #HEADER_FORMAT = '!BBHH'  # 6 bytes #TODO we need to add the rest of the headers and the payload
     SERVER_PORT = 8000
-    peers_list = []
+    peers_list = {}
     peers_bitmaps = {}
     payload = 0
-
+    id = 0
+    sequence_number=0
     def __init__(self, port: int):
         self.SERVER_PORT = port
 
@@ -79,10 +80,11 @@ class Server:
                 case self.MessageType.JOIN:
                     print("SERVER: peer has joined the server!")
                     if address not in self.peers_list:
-                        self.peers_list.append(address)
+                        self.peers_list[address] = id+1
                         msg = pickle.dumps(self.peers_list)
-                        header = self.pack_header(1, 1, self.MessageType.PEER_LIST, 1,
-                                            0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
+                        
+                        header = self.pack_header(1,self.MessageType.PEER_LIST,sequence_number,0, 1,0)  # TODO: bad header, need to actually define an id, version, sequence and payload length
+                        sequence_number+=1
                         server_socket.sendto((header + msg), address)
                         print("SERVER: peers list was sent!")
 

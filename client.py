@@ -2,14 +2,13 @@ import hashlib
 import socket
 import pickle
 import struct
+import threading 
 from enum import IntEnum
-import protocol 
+from protocol import pack_header , unpack_header 
 from server import Server
 
 
 class Client:
-    HEADER_SIZE = 6  #temp
-    HEADER_FORMAT = '!BBHH'  # 6 bytes #TODO we need to add the rest of the headers and the payload
     SERVER_IP = '127.0.0.1'
     SERVER_PORT = 8000
     peers_list = []
@@ -35,11 +34,16 @@ class Client:
         msg = self.pack_header(1, 1, Server.MessageType.JOIN, 0, 0)
         client_socket.sendto(msg, (self.SERVER_IP, self.SERVER_PORT))
         print(f"CLIENT: Client sent JOIN message to SERVER:({self.SERVER_IP}:{self.SERVER_PORT})")
+        main_thread = threading.Thread(target=self.listen(client_socket))
+        main_thread.start()
+        
+        
+    def listen(self,client_socket):
         while True: #TODO: we need to move this main loop into its own function
             message, address = client_socket.recvfrom(1200)
             if len(message) < self.HEADER_SIZE:
                 continue
-            protocol_id, version, msg_type, sequence_number, payload_length = self.unpack_header(message) #TODO: currently doesn't care about the header
+            protocol_id, version_message_type, sequence_number,Peer_ID, payload_length,Timestamp  = unpack_header(message) #TODO: currently doesn't care about the header
             print("CLIENT: received a message from server!")
     
 
