@@ -13,7 +13,7 @@ class Client:
     bitmap = 0b0
     peers_list: dict[int, pd] = {} #key = id, value = peer_details
     rtt_list: list[pd] = []
-    chunks = []
+    chunks = {}
     def __init__(self, ip: str, port: int):
         self.SERVER_IP = ip
         self.SERVER_PORT = port
@@ -60,8 +60,46 @@ class Client:
         listen_thread.start()
         req_thread.start()
 
-    def request(self, client_socket): #TODO: finish this, and map complete
-        return
+    def request(self, client_socket):
+        while True:
+            for chunk_id in range(protocol.NUM_CHUNKS):
+
+                # Skip chunks that the client already has
+                if protocol.has(self.bitmap, chunk_id):
+                    continue
+
+                # Find peers that have this chunk
+                available_peers = [
+                    peer for peer in self.rtt_list
+                    if protocol.has(peer.latest_bitmap, chunk_id)
+                ]
+
+                if not available_peers:
+                    continue
+
+                # Select the peer with the lowest RTT
+                selected_peer = min(
+                    available_peers,
+                    key=lambda peer: peer.latest_rtt
+                )
+
+                # Send chunk request
+                payload = pickle.dumps(chunk_id)
+
+                header = protocol.pack_header(
+                    1,
+                    self.MessageType.CHUNK_REQ,
+                    0,
+                    self.id,
+                    len(payload)
+                )
+
+                client_socket.sendto(
+                    header + payload,
+                    selected_peer.address
+                )
+
+                time.sleep(0.01)
 
     def rtt_measurement(self, client_socket):
         while True:
@@ -104,16 +142,32 @@ class Client:
                     client_socket.sendto(header, address)
 
                 case self.MessageType.CHUNK_DATA:
-                    chunk = pickle.loads(msg[protocol.HEADER_SIZE:])
-                    self.chunks.append(chunk)
+                    chunk_id, chunk = pickle.loads(msg[protocol.HEADER_SIZE:])
 
+                    if not protocol.has(self.bitmap, chunk_id):
+                        self.chunks[chunk_id] = chunk
+                        self.bitmap = protocol.set_bit(self.bitmap, chunk_id)
+
+                        print(f"CLIENT: Received chunk {chunk_id}")
+
+                        if self.bitmap.bit_count() == protocol.NUM_CHUNKS:
+                            print("CLIENT: Map completed!")
+                            header = protocol.pack_header(    1,    self.MessageType.MAP_COMPLETE,    sequence_number,    self.id,    0)
+                            client_socket.sendto(    header,    (self.SERVER_IP, self.SERVER_PORT))
                 case self.MessageType.PEER_LIST:
                     peer = pickle.loads(msg[protocol.HEADER_SIZE:])
                     self.peers_list[peer.id] = peer
 
-                case self.MessageType.CHUNK_REQ: #TODO: finish this
-                    continue
-                    #sending-> responding to req
+                case self.MessageType.COMPLETE_ACK:
+                    print("CLIENT: Server acknowledged map completion!")
+                
+                case self.MessageType.CHUNK_REQ:
+                    chunk_id = pickle.loads(msg[protocol.HEADER_SIZE:])
+                    if protocol.has(self.bitmap, chunk_id):
+                        chunk = self.chunks[chunk_id]
+                        payload = pickle.dumps((chunk_id, chunk))
+                        header = protocol.pack_header(    1,    self.MessageType.CHUNK_DATA,    sequence_number,    self.id,    len(payload))
+                        client_socket.sendto(header + payload, address)
 if __name__ == "__main__":
     client = Client('127.0.0.1', 8000)
     client.start_client()

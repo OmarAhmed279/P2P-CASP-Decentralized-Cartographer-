@@ -19,9 +19,64 @@ def unpack_header(raw_bytes):
     message_type = version_message_type & 0xF  # both are 4 bits so this code to get them out the 8 bit char the share
     return protocol_id, version, message_type, sequence_number, peer_id, payload_length, timestamp
 
-def has(bm , chunk):
-    pass
-    
-    
-def set_bit(bm , chunk):
-    pass
+def pack_packet(
+    version,
+    msg_type,
+    sequence_number,
+    peer_id,
+    payload=b'',
+    timestamp=time.time_ns(),
+    protocol_id=PROTO_ID
+):
+    """Pack a complete packet containing a header and payload."""
+
+    if not isinstance(payload, bytes):
+        raise TypeError("Payload must be bytes")
+
+    header = pack_header(
+        version,
+        msg_type,
+        sequence_number,
+        peer_id,
+        len(payload),
+        timestamp,
+        protocol_id
+    )
+
+    return header + payload
+
+
+def unpack_packet(raw_bytes):
+    """Unpack a complete packet into its header and payload."""
+
+    if len(raw_bytes) < HEADER_SIZE:
+        raise ValueError("Packet is smaller than the header")
+
+    header = unpack_header(raw_bytes)
+
+    payload_length = header[4]
+    payload = raw_bytes[HEADER_SIZE:]
+
+    if len(payload) != payload_length:
+        raise ValueError(
+            f"Payload length mismatch: expected {payload_length}, "
+            f"received {len(payload)}"
+        )
+
+    return header, payload
+
+def _validate_chunk_id(chunk: int) -> None:
+    if not isinstance(chunk, int) or isinstance(chunk, bool):
+        raise TypeError("chunk must be an integer")
+    if not 0 <= chunk < NUM_CHUNKS:
+        raise ValueError("Invalid chunk ID")
+
+
+def has(bm: int, chunk: int) -> bool:
+    _validate_chunk_id(chunk)
+    return bool((bm >> chunk) & 1)
+
+
+def set_bit(bm: int, chunk: int) -> int:
+    _validate_chunk_id(chunk)
+    return bm | (1 << chunk)

@@ -42,25 +42,28 @@ class Server:
     def seedloop(self, server_socket):
         while True:
             time.sleep(0.01024)
-            if len(self.peers_list) > 0: #TODO: fix rarest chunk
-                poorest_client = min(self.peers_list.values(), key=lambda peer: peer.latest_bitmap.bit_count())
-                bit_counts = Counter()
-                max_bit_length = max(peer.latest_bitmap.bit_length() for peer in self.peers_list.values())
+            if len(self.peers_list) > 0:
+                poorest_client = min(
+                    self.peers_list.values(),
+                    key=lambda peer: peer.latest_bitmap.bit_count()
+                )
 
-                # Count frequencies at each position
+                bit_counts = Counter()
+
+                # Count how many peers have each chunk
                 for peer in self.peers_list.values():
-                    num = peer.latest_bitmap
-                    for pos in range(max_bit_length):
-                        if (num >> pos) & 1:
+                    for pos in range(256):
+                        if (peer.latest_bitmap >> pos) & 1:
                             bit_counts[pos] += 1
 
-                # Find the position with the lowest count (ignoring completely unused positions)
-                rarest_chunk = min(bit_counts, key=bit_counts.get)
+                # Find the chunk with the lowest availability
+                rarest_chunk = min(range(256), key=lambda pos: bit_counts[pos])
 
-                msg = self.payload[rarest_chunk * 64: rarest_chunk * 64 + 64]
-                header = protocol.pack_header(1, self.MessageType.CHUNK_DATA, 0, 0, 64, time.time())
-                server_socket.sendto((header + msg), poorest_client)
-
+                # Don't send a chunk the selected client already has
+                if not ((poorest_client.latest_bitmap >> rarest_chunk) & 1):
+                    msg = pickle.dumps((rarest_chunk,self.payload[rarest_chunk * 64: rarest_chunk * 64 + 64]))
+                    header = protocol.pack_header(                        1,                        self.MessageType.CHUNK_DATA,                        0,                        0,                        len(msg)                    )
+                    server_socket.sendto(header + msg, poorest_client.address)
     def mainloop(self, server_socket):
         while True:
             message, address = server_socket.recvfrom(1200)
@@ -77,9 +80,8 @@ class Server:
                     if not any(peer.address == address for peer in self.peers_list.values()):
                         self.id_counter = self.id_counter + 1
                         new_peer = pd(address[0], address[1], id=self.id_counter)
-                        msg = pickle.dumps(new_peer)
-                        header = protocol.pack_header(1, self.MessageType.PEER_LIST, sequence_number, 0, 1, int(time.time()))
-
+                        msg = pickle.dumps(self.peers_list)
+                        header = protocol.pack_header( 1, self.MessageType.PEER_LIST, sequence_number, 0, len(msg))
                         for peer in self.peers_list.values():
                             server_socket.sendto((header + msg), peer.address)
 
@@ -89,8 +91,14 @@ class Server:
                         server_socket.sendto((header + msg), address)
 
                         print("SERVER: peers list was sent!")
-                case self.MessageType.MAP_COMPLETE: #TODO: implement map complete
-                    continue
+                case self.MessageType.MAP_COMPLETE:
+                    print(f"SERVER: Client {peer_id} has completed the map!")
+                    header = protocol.pack_header(    1,    self.MessageType.COMPLETE_ACK,    sequence_number,    0,    0)
+                    server_socket.sendto(header, address)
+                case self.MessageType.CHUNK_BITMAP:
+                    bitmap = pickle.loads(message[protocol.HEADER_SIZE:])
+                    if peer_id in self.peers_list:
+                        self.peers_list[peer_id].latest_bitmap = bitmap
 
 
 def generate_synthetic_payload(size_bytes: int, chunk_size: int = 64, seed: int = 42) -> bytes:  #5 seconds limit of uploading to 4 peers and the 50kbps limit 
