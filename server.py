@@ -25,7 +25,7 @@ class Server:
         CHUNK_REQ = 4
         CHUNK_DATA = 5
         MAP_COMPLETE = 6
-        COMPLETE_ACK = 7
+        HEARTBEAT_RESPONSE = 7
         LEAVE = 8
         ERROR = 9
 
@@ -62,8 +62,9 @@ class Server:
                 # Don't send a chunk the selected client already has
                 if not ((poorest_client.latest_bitmap >> rarest_chunk) & 1):
                     msg = pickle.dumps((rarest_chunk,self.payload[rarest_chunk * 64: rarest_chunk * 64 + 64]))
-                    header = protocol.pack_header(                        1,                        self.MessageType.CHUNK_DATA,                        0,                        0,                        len(msg)                    )
+                    header = protocol.pack_header(1, self.MessageType.CHUNK_DATA,0,0, len(msg))
                     server_socket.sendto(header + msg, poorest_client.address)
+
     def mainloop(self, server_socket):
         while True:
             message, address = server_socket.recvfrom(1200)
@@ -80,7 +81,7 @@ class Server:
                     if not any(peer.address == address for peer in self.peers_list.values()):
                         self.id_counter = self.id_counter + 1
                         new_peer = pd(address[0], address[1], id=self.id_counter)
-                        msg = pickle.dumps(self.peers_list)
+                        msg = pickle.dumps(new_peer)
                         header = protocol.pack_header( 1, self.MessageType.PEER_LIST, sequence_number, 0, len(msg))
                         for peer in self.peers_list.values():
                             server_socket.sendto((header + msg), peer.address)
@@ -93,7 +94,7 @@ class Server:
                         print("SERVER: peers list was sent!")
                 case self.MessageType.MAP_COMPLETE:
                     print(f"SERVER: Client {peer_id} has completed the map!")
-                    header = protocol.pack_header(    1,    self.MessageType.COMPLETE_ACK,    sequence_number,    0,    0)
+                    header = protocol.pack_header(    1,    self.MessageType.HEARTBEAT_RESPONSE,    sequence_number,    0,    0)
                     server_socket.sendto(header, address)
                 case self.MessageType.CHUNK_BITMAP:
                     bitmap = pickle.loads(message[protocol.HEADER_SIZE:])

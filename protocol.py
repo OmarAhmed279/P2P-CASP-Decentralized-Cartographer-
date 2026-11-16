@@ -8,7 +8,7 @@ HEADER_SIZE = 12
 HEADER_FORMAT = '!BBHHHI'
 
 
-def pack_header(version, msg_type, sequence_number, peer_id, payload_length, timestamp = time.time_ns(), protocol_id = PROTO_ID ):  # TODO make it pack / unpack not exclusive to headers
+def pack_header(version, msg_type, sequence_number, peer_id, payload_length, timestamp = int(time.time()), protocol_id = PROTO_ID ):  # TODO make it pack / unpack not exclusive to headers
     version_message_type = (version << 4) + msg_type
     header_bytes = struct.pack(HEADER_FORMAT, protocol_id, version_message_type, sequence_number, peer_id, payload_length, timestamp)
     return header_bytes
@@ -25,7 +25,7 @@ def pack_packet(
     sequence_number,
     peer_id,
     payload=b'',
-    timestamp=time.time_ns(),
+    timestamp=int(time.time()),
     protocol_id=PROTO_ID
 ):
     """Pack a complete packet containing a header and payload."""

@@ -125,6 +125,7 @@ class Client:
                 head = protocol.pack_header(1, self.MessageType.CHUNK_BITMAP, 0, self.id, 32, int(int(time.time())))
                 msg = pickle.dumps(self.bitmap)
                 client_socket.sendto((head + msg), peer.address)
+                print("CLIENT: sent a bitmap!")
 
     def listen(self, client_socket):
         while True:
@@ -154,11 +155,12 @@ class Client:
                             print("CLIENT: Map completed!")
                             header = protocol.pack_header(    1,    self.MessageType.MAP_COMPLETE,    sequence_number,    self.id,    0)
                             client_socket.sendto(    header,    (self.SERVER_IP, self.SERVER_PORT))
+
                 case self.MessageType.PEER_LIST:
                     peer = pickle.loads(msg[protocol.HEADER_SIZE:])
                     self.peers_list[peer.id] = peer
 
-                case self.MessageType.COMPLETE_ACK:
+                case self.MessageType.HEARTBEAT_RESPONSE:
                     print("CLIENT: Server acknowledged map completion!")
                 
                 case self.MessageType.CHUNK_REQ:
