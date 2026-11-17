@@ -1,5 +1,6 @@
 import struct
 import time
+from enum import IntEnum
 
 PROTO_ID = 0x67
 CHUNK_SIZE = 64
@@ -7,6 +8,18 @@ NUM_CHUNKS = 256
 HEADER_SIZE = 12
 HEADER_FORMAT = '!BBHHHI'
 
+class MessageType(IntEnum):
+    JOIN = 0
+    PEER_LIST = 1
+    PEER_HEARTBEAT = 2
+    CHUNK_BITMAP = 3
+    CHUNK_REQ = 4
+    CHUNK_DATA = 5
+    MAP_COMPLETE = 6
+    COMPLETE_ACK = 7
+    HEARTBEAT_ACK = 8
+    LEAVE = 9
+    ERROR = 10
 
 def pack_header(version, msg_type, sequence_number, peer_id, payload_length, timestamp = int(time.time()), protocol_id = PROTO_ID ):  # TODO make it pack / unpack not exclusive to headers
     version_message_type = (version << 4) + msg_type
