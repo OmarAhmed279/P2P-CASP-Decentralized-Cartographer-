@@ -7,7 +7,7 @@ import threading
 import protocol
 from peer_details import peer_details as pd
 
-class Server:
+class Server: #TODO: check overall file again
     SERVER_PORT = 8000
     peers_list: dict[int, pd] = {}
     payload = 0
@@ -24,7 +24,7 @@ class Server:
         return startup_thread
 
     def start_server(self):
-        self.payload = generate_synthetic_payload(protocol.NUM_CHUNKS * protocol.CHUNK_SIZE)
+        self.payload = generate_synthetic_payload(protocol.NUM_CHUNKS * protocol.CHUNK_SIZE) #TODO: move this to before server starts, or save it and reuse
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(('', self.SERVER_PORT))
         server_socket.settimeout(0.5)
@@ -37,10 +37,12 @@ class Server:
         seeding_thread.join()
         server_socket.close()
 
-    def seedloop(self, server_socket):
+    def seedloop(self, server_socket): #TODO: calculate upload speed and update it automatically
         sent_chunks = defaultdict(list)
         active_peers = []
+
         while not self.shutdown_event.wait(0.01024):
+            iteration_time = time.time_ns()
             peers = list(self.peers_list.values())
 
             if len(self.peers_list) > 0:
@@ -94,6 +96,7 @@ class Server:
             server_socket.sendto(header + msg, peer.address)
             sent_chunks[peer.id].append(chunk)
             print(f"SERVER: sent chunk {chunk} to poorest client {peer.id}")
+            print(f"{time.time_ns() - iteration_time} milliseconds elapsed")
 
     def mainloop(self, server_socket):
         while not self.shutdown_event.is_set():
@@ -126,7 +129,7 @@ class Server:
                         print("SERVER: peers list was sent!")
                         
                 case protocol.MessageType.MAP_COMPLETE:
-                    print(f"SERVER: Client {peer_id} has completed the map!")
+                    print(f"SERVER: Client {peer_id} has completed the map!") #TODO: verify that map is actually done
                     self.peers_list[peer_id].done = True
                     for peer in self.peers_list.values():
                         if not self.peers_list[peer.id].done:

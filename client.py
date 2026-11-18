@@ -6,7 +6,7 @@ import protocol
 from peer_details import peer_details as pd
 import time
 
-class Client:
+class Client: #TODO: check overall file again
     def __init__(self, ip: str, port: int):
         self.SERVER_IP = ip
         self.SERVER_PORT = port
@@ -68,7 +68,7 @@ class Client:
         while True:
             if self.shutdown_event.wait(timeout=0.01):
                 break
-            for chunk_id in range(protocol.NUM_CHUNKS):
+            for chunk_id in range(protocol.NUM_CHUNKS): #TODO: only iterate on the remaining chunks
 
                 # Skip chunks that the client already has
                 if protocol.has(self.bitmap, chunk_id):

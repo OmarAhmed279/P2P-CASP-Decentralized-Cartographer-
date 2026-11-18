@@ -6,7 +6,7 @@ PROTO_ID = 0x67
 CHUNK_SIZE = 64
 NUM_CHUNKS = 256
 HEADER_SIZE = 12
-HEADER_FORMAT = '!BBHHHI'
+HEADER_FORMAT = '!BBHHHI' #TODO: finish header design
 
 class MessageType(IntEnum):
     JOIN = 0
